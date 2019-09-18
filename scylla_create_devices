@@ -34,7 +34,7 @@ def curl_instance_data(url):
     while True:
         try:
             req = urllib.request.Request(url)
-            return urllib.request.urlopen(req).read()
+            return urllib.request.urlopen(req).read().encode('utf-8')
         except urllib.error.HTTPError:
             logger.info("Failed to grab %s..." % url)
             time.sleep(5)

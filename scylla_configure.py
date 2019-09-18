@@ -59,9 +59,10 @@ class ScyllaAmiConfigurator:
     @property
     def instance_user_data(self):
         if not self._instance_user_data:
-            raw_user_data = self.get_instance_metadata("user-data")
-            LOGGER.debug("Got user-data: %s", raw_user_data)
             try:
+                raw_user_data = self.get_instance_metadata("user-data")
+                LOGGER.debug("Got user-data: %s", raw_user_data)
+
                 self._instance_user_data = json.loads(raw_user_data)
                 LOGGER.debug(self._instance_user_data)
             except Exception as e:
