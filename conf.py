@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 ### Script provided by DataStax.
 
-import ConfigParser
+import configparser
 
 configfile = '/etc/scylla/ami.conf'
 
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read(configfile)
 try:
     config.add_section('AMI')
