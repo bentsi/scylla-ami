@@ -2,7 +2,6 @@
 import re
 import os
 import sys
-import conf
 import time
 import logging
 import subprocess
@@ -34,7 +33,7 @@ def curl_instance_data(url):
     while True:
         try:
             req = urllib.request.Request(url)
-            return urllib.request.urlopen(req).read()
+            return urllib.request.urlopen(req).read().decode("utf-8")
         except urllib.error.HTTPError:
             logger.info("Failed to grab %s..." % url)
             time.sleep(5)
@@ -77,21 +76,6 @@ def xenify(devname):
     return dev.replace("sd", "xvd")
 
 
-def read_role(t):
-    c = conf.get_config("AMI", t + "_role")
-    # compatibility with older AMI ds2 scripts. If ephemeral is not
-    # specified, assume all, if ebs not specified assume unused.. This
-    # shouldn't happen because ds2 and this script are supposed to be
-    # deployed in tandem - so warn.
-    if not c:
-        if t == "ephemeral":
-            c = "all"
-        else:
-            c = "unused"
-        logger.warning("Unspecified role for %s: assuming default (%s)" % (t, c))
-    return c
-
-
 def device_exists(dev):
     return os.path.exists("/dev/%s" % dev)
 
@@ -132,8 +116,8 @@ def device_is_busy(dev):
 def get_disk_bundles():
     # define preferred disk roles. We'll see soon if we can respect them.
     role = {
-        "ebs": read_role("ebs"),
-        "ephemeral": read_role("ephemeral")
+        "ebs": "unused",
+        "ephemeral": "all"
     }
 
     # Find disk assignments

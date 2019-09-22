@@ -28,6 +28,8 @@ class ScyllaAmiConfigurator:
         'start_scylla_after_config': False,  # Scylla is stopped by default when creating AMI
     }
 
+    INSTANCE_METADATA_URL = "http://169.254.169.254/latest"
+
     def __init__(self, scylla_yaml_path="/etc/scylla/scylla.yaml"):
         self.scylla_yaml_path = Path(scylla_yaml_path)
         self.scylla_yaml_example_path = Path(scylla_yaml_path + ".example")
@@ -46,26 +48,25 @@ class ScyllaAmiConfigurator:
         with self.scylla_yaml_path.open("w") as scylla_yaml_file:
             return yaml.dump(data=self.scylla_yaml, stream=scylla_yaml_file)
 
-    @staticmethod
-    def get_instance_metadata(path):
+    def get_instance_metadata(self, path):
         LOGGER.info("Getting '%s'...", path)
-        with urlopen('http://169.254.169.254/latest/%s/' % path) as url:
+        with urlopen(self.INSTANCE_METADATA_URL + '/%s/' % path) as url:
             try:
                 meta_data = url.read().decode("utf-8")
                 return meta_data
             except Exception as error:
-                LOGGER.exception("Unable to get '{path}': {error}".format(**locals()))
+                LOGGER.warning("Unable to get '{path}': {error}".format(**locals()))
 
     @property
     def instance_user_data(self):
         if not self._instance_user_data:
-            raw_user_data = self.get_instance_metadata("user-data")
-            LOGGER.debug("Got user-data: %s", raw_user_data)
             try:
+                raw_user_data = self.get_instance_metadata("user-data")
+                LOGGER.debug("Got user-data: %s", raw_user_data)
                 self._instance_user_data = json.loads(raw_user_data)
                 LOGGER.debug(self._instance_user_data)
             except Exception as e:
-                LOGGER.warning("Error parsing user data: %s. Will use defaults!", e)
+                LOGGER.warning("Error getting user data: %s. Will use defaults!", e)
         return self._instance_user_data
 
     def updated_ami_conf_defaults(self):

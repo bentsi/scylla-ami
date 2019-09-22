@@ -37,3 +37,4 @@ if __name__ == '__main__':
     else:
         run('/opt/scylladb/scripts/scylla_coredump_setup')
     pathlib.Path('/etc/scylla/ami_configured').touch()
+                                                                                                                        
