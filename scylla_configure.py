@@ -2,14 +2,16 @@
 import base64
 import json
 import subprocess
-
 import yaml
 import time
 import logging
+from log import setup_logging
 from pathlib import Path
 from urllib.request import urlopen
 from urllib.parse import urljoin
 
+
+setup_logging()
 LOGGER = logging.getLogger(__name__)
 
 
@@ -31,7 +33,7 @@ class ScyllaAmiConfigurator:
         'start_scylla_after_config': False,  # Scylla is stopped by default when creating AMI
     }
 
-    INSTANCE_METADATA_URL = "http://169.254.169.254/latest"
+    INSTANCE_METADATA_URL = "http://169.254.169.254/latest/"
 
     def __init__(self, scylla_yaml_path="/etc/scylla/scylla.yaml"):
         self.scylla_yaml_path = Path(scylla_yaml_path)
@@ -80,7 +82,7 @@ class ScyllaAmiConfigurator:
         return self._instance_user_data
 
     def updated_ami_conf_defaults(self):
-        private_ip = self.get_instance_metadata("/meta-data/local-ipv4", fail=True)
+        private_ip = self.get_instance_metadata("meta-data/local-ipv4", fail=True)
         self.AMI_CONF_DEFAULTS["scylla_yaml"]["listen_address"] = private_ip
         self.AMI_CONF_DEFAULTS["scylla_yaml"]["broadcast_rpc_address"] = private_ip
 
