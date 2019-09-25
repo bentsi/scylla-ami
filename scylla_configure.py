@@ -8,6 +8,7 @@ import time
 import logging
 from pathlib import Path
 from urllib.request import urlopen
+from urllib.parse import urljoin
 
 LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +21,8 @@ class ScyllaAmiConfigurator:
             'auto_bootstrap': False,
             'listen_address': "",  # will be configured as a private IP when instance meta data is read
             'broadcast_rpc_address': "",  # will be configured as a private IP when instance meta data is read
+            'endpoint_snitch': "org.apache.cassandra.locator.Ec2Snitch",
+            'rpc_address': "0.0.0.0"
         },
         'scylla_startup_args': [],  # Example ["--smp 1"]
         'developer_mode': False,  # run('/usr/sbin/scylla_dev_mode_setup', '--developer-mode', '1')
@@ -34,7 +37,7 @@ class ScyllaAmiConfigurator:
         self.scylla_yaml_path = Path(scylla_yaml_path)
         self.scylla_yaml_example_path = Path(scylla_yaml_path + ".example")
         self._scylla_yaml = {}
-        self._instance_user_data = {}
+        self._instance_user_data = None
 
     @property
     def scylla_yaml(self):
@@ -48,35 +51,42 @@ class ScyllaAmiConfigurator:
         with self.scylla_yaml_path.open("w") as scylla_yaml_file:
             return yaml.dump(data=self.scylla_yaml, stream=scylla_yaml_file)
 
-    def get_instance_metadata(self, path):
-        LOGGER.info("Getting '%s'...", path)
-        with urlopen(self.INSTANCE_METADATA_URL + '/%s/' % path) as url:
+    def get_instance_metadata(self, path, fail=False):
+        meta_data_url = urljoin(self.INSTANCE_METADATA_URL, path)
+        LOGGER.info("Getting '%s'...", meta_data_url)
+        with urlopen(meta_data_url) as url:
             try:
                 meta_data = url.read().decode("utf-8")
                 return meta_data
             except Exception as error:
-                LOGGER.warning("Unable to get '{path}': {error}".format(**locals()))
+                err_msg = "Unable to get instance metadata '{path}': {error}".format(**locals())
+                if fail:
+                    LOGGER.critical(err_msg)
+                else:
+                    LOGGER.warning(err_msg)
+                    return ""
 
     @property
     def instance_user_data(self):
-        if not self._instance_user_data:
+        if self._instance_user_data is None:
             try:
                 raw_user_data = self.get_instance_metadata("user-data")
                 LOGGER.debug("Got user-data: %s", raw_user_data)
-                self._instance_user_data = json.loads(raw_user_data)
-                LOGGER.debug(self._instance_user_data)
+                self._instance_user_data = json.loads(raw_user_data) if raw_user_data.strip() else {}
+                LOGGER.debug("JSON parsed user-data: %s", self._instance_user_data)
             except Exception as e:
                 LOGGER.warning("Error getting user data: %s. Will use defaults!", e)
+                self._instance_user_data = {}
         return self._instance_user_data
 
     def updated_ami_conf_defaults(self):
-        private_ip = self.get_instance_metadata("/meta-data/local-ipv4")
+        private_ip = self.get_instance_metadata("/meta-data/local-ipv4", fail=True)
         self.AMI_CONF_DEFAULTS["scylla_yaml"]["listen_address"] = private_ip
         self.AMI_CONF_DEFAULTS["scylla_yaml"]["broadcast_rpc_address"] = private_ip
 
     def configure_scylla_yaml(self):
         self.updated_ami_conf_defaults()
-        LOGGER.info("Creating scylla.yaml...")
+        LOGGER.info("Going to create scylla.yaml...")
         new_scylla_yaml_config = self.instance_user_data.get("scylla_yaml", {})
         if new_scylla_yaml_config:
             LOGGER.info("Setting params from user-data...")
@@ -84,11 +94,11 @@ class ScyllaAmiConfigurator:
                 param_value = new_scylla_yaml_config[param]
                 LOGGER.info("Setting {param}={param_value}".format(**locals()))
                 self.scylla_yaml[param] = param_value
-        LOGGER.info("Setting AMI default params...")
+
         for param in self.AMI_CONF_DEFAULTS["scylla_yaml"]:
             if param not in new_scylla_yaml_config:
                 default_param_value = self.AMI_CONF_DEFAULTS["scylla_yaml"][param]
-                LOGGER.info("Setting {param}={default_param_value}".format(**locals()))
+                LOGGER.info("Setting default {param}={default_param_value}".format(**locals()))
                 self.scylla_yaml[param] = default_param_value
         self.scylla_yaml_path.rename(str(self.scylla_yaml_example_path))
         self.save_scylla_yaml()
