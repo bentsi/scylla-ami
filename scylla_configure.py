@@ -11,7 +11,6 @@ from urllib.request import urlopen
 from urllib.parse import urljoin
 
 
-setup_logging()
 LOGGER = logging.getLogger(__name__)
 
 
@@ -24,16 +23,20 @@ class ScyllaAmiConfigurator:
             'listen_address': "",  # will be configured as a private IP when instance meta data is read
             'broadcast_rpc_address': "",  # will be configured as a private IP when instance meta data is read
             'endpoint_snitch': "org.apache.cassandra.locator.Ec2Snitch",
-            'rpc_address': "0.0.0.0"
+            'rpc_address': "0.0.0.0",
+            'seed_provider': [{'class_name': 'org.apache.cassandra.locator.SimpleSeedProvider',
+                               'parameters': [{'seeds': ""}]}],  # will be configured as a private IP when
+                                                                 # instance meta data is read
         },
-        'scylla_startup_args': [],  # Example ["--smp 1"]
-        'developer_mode': False,  # run('/usr/sbin/scylla_dev_mode_setup', '--developer-mode', '1')
-        'post_configuration_script': '',  # base64()/url(urllib.parse.urlparse)
+        'scylla_startup_args': [],  # TODO: implement
+        'developer_mode': False,
+        'post_configuration_script': '',
         'post_configuration_script_timeout': 600,  # seconds
-        'start_scylla_after_config': False,  # Scylla is stopped by default when creating AMI
+        'start_scylla_on_first_boot': False,
     }
 
     INSTANCE_METADATA_URL = "http://169.254.169.254/latest/"
+    DISABLE_START_FILE_PATH = Path("/etc/scylla/ami_disabled")
 
     def __init__(self, scylla_yaml_path="/etc/scylla/scylla.yaml"):
         self.scylla_yaml_path = Path(scylla_yaml_path)
@@ -85,6 +88,7 @@ class ScyllaAmiConfigurator:
         private_ip = self.get_instance_metadata("meta-data/local-ipv4", fail=True)
         self.AMI_CONF_DEFAULTS["scylla_yaml"]["listen_address"] = private_ip
         self.AMI_CONF_DEFAULTS["scylla_yaml"]["broadcast_rpc_address"] = private_ip
+        self.AMI_CONF_DEFAULTS["scylla_yaml"]["seed_provider"][0]['parameters'][0]['seeds'] = private_ip
 
     def configure_scylla_yaml(self):
         self.updated_ami_conf_defaults()
@@ -106,10 +110,13 @@ class ScyllaAmiConfigurator:
         self.save_scylla_yaml()
 
     def configure_scylla_startup_args(self):
-        pass
+        if self.instance_user_data.get("scylla_startup_args"):
+            LOGGER.warning("Setting of Scylla startup args currently unsupported")
 
     def set_developer_mode(self):
-        pass
+        if self.instance_user_data.get("developer_mode"):
+            LOGGER.info("Setting up developer mode")
+            subprocess.run(['/usr/sbin/scylla_dev_mode_setup', '--developer-mode', '1'], timeout=60, check=True)
 
     def run_post_configuration_script(self):
         post_configuration_script = self.instance_user_data.get("post_configuration_script")
@@ -123,17 +130,20 @@ class ScyllaAmiConfigurator:
             except Exception as e:
                 LOGGER.error("Post configuration script failed: %s", e)
 
-    def run_scylla_after_config(self):
-        pass
+    def start_scylla_on_first_boot(self):
+        if not self.instance_user_data.get("start_scylla_on_first_boot"):
+            LOGGER.info("Disabling Scylla start on first boot")
+            self.DISABLE_START_FILE_PATH.touch()
 
     def configure(self):
         self.configure_scylla_yaml()
         self.configure_scylla_startup_args()
         self.set_developer_mode()
         self.run_post_configuration_script()
-        self.run_scylla_after_config()
+        self.start_scylla_on_first_boot()
 
 
 if __name__ == "__main__":
+    setup_logging()
     sac = ScyllaAmiConfigurator()
     sac.configure()
