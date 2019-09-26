@@ -190,3 +190,14 @@ class TestScyllaConfigurator(TestCase):
         with self.assertRaises(expected_exception=SystemExit):
             self.configurator.run_post_configuration_script()
 
+    def test_do_not_start_on_first_boot(self):
+        raw_user_data = json.dumps(
+            dict(
+                start_scylla_on_first_boot=False,
+            )
+        )
+        self.configurator.DISABLE_START_FILE_PATH = self.temp_dir_path / "ami_disabled"
+        self.run_scylla_configure(user_data={"/user-data": {"code": 200, "text": raw_user_data},
+                                             "/meta-data/local-ipv4": {"code": 200, "text": self.private_ip}})
+        self.configurator.start_scylla_on_first_boot()
+        assert self.configurator.DISABLE_START_FILE_PATH.exists(), "ami_disabled not created"
