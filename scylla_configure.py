@@ -32,7 +32,7 @@ class ScyllaAmiConfigurator:
         'developer_mode': False,
         'post_configuration_script': '',
         'post_configuration_script_timeout': 600,  # seconds
-        'start_scylla_on_first_boot': False,
+        'start_scylla_on_first_boot': True,
     }
 
     INSTANCE_METADATA_URL = "http://169.254.169.254/latest/"
