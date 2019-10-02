@@ -110,11 +110,13 @@ class ScyllaAmiConfigurator:
         self.save_scylla_yaml()
 
     def configure_scylla_startup_args(self):
-        if self.instance_user_data.get("scylla_startup_args"):
+        default_scylla_startup_args = self.AMI_CONF_DEFAULTS["scylla_startup_args"]
+        if self.instance_user_data.get("scylla_startup_args", default_scylla_startup_args):
             LOGGER.warning("Setting of Scylla startup args currently unsupported")
 
     def set_developer_mode(self):
-        if self.instance_user_data.get("developer_mode"):
+        default_developer_mode = self.AMI_CONF_DEFAULTS["developer_mode"]
+        if self.instance_user_data.get("developer_mode", default_developer_mode):
             LOGGER.info("Setting up developer mode")
             subprocess.run(['/usr/sbin/scylla_dev_mode_setup', '--developer-mode', '1'], timeout=60, check=True)
 
@@ -131,7 +133,8 @@ class ScyllaAmiConfigurator:
                 LOGGER.error("Post configuration script failed: %s", e)
 
     def start_scylla_on_first_boot(self):
-        if not self.instance_user_data.get("start_scylla_on_first_boot"):
+        default_start_scylla_on_first_boot = self.AMI_CONF_DEFAULTS["start_scylla_on_first_boot"]
+        if not self.instance_user_data.get("start_scylla_on_first_boot", default_start_scylla_on_first_boot):
             LOGGER.info("Disabling Scylla start on first boot")
             self.DISABLE_START_FILE_PATH.touch()
 

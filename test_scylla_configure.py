@@ -103,6 +103,7 @@ class TestScyllaConfigurator(TestCase):
     def test_empty_user_data(self):
         self.run_scylla_configure(user_data=self.default_instance_metadata())
         self.check_yaml_files_exist()
+        assert not self.configurator.DISABLE_START_FILE_PATH.exists(), "ami_disabled not created"
         with self.configurator.scylla_yaml_path.open() as scylla_yaml_file:
             LOGGER.info("Testing that defaults are set as expected")
             scyll_yaml = yaml.load(scylla_yaml_file, Loader=yaml.SafeLoader)
